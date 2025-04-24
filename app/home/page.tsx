@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/supabaseClient'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Notes } from '@/types/types'
+import { Notes } from '../types/types'
 
 const fetchNotes = async () => {
   const { data, error } = await supabase
@@ -40,7 +40,7 @@ const HomePage = () => {
   }, [router])
 
   // 📥 Fetch Notes
-  const { data: notes = [], refetch } = useQuery({
+  const { data: notes = [] } = useQuery({
     queryKey: ['notes'],
     queryFn: fetchNotes,
     enabled: !loading,
@@ -74,8 +74,12 @@ const HomePage = () => {
       setModalOpen(false)
       setNoteToEdit(null)
     },
-    onError: (err: any) => {
-      alert(err.message)
+    onError: (err:unknown) => {
+      if(err instanceof Error){
+        alert(err.message)
+      } else {
+        alert('An unknown error occurred')
+      }
     },
   })
 
@@ -88,8 +92,12 @@ const HomePage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notes'] })
     },
-    onError: (err: any) => {
-      alert(err.message)
+    onError: (err:unknown) => {
+      if(err instanceof Error){
+        alert(err.message)
+      } else {
+        alert('An unknown error occurred')
+      }
     },
   })
 

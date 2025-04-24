@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from './button'
-import { Notes } from '@/types/types' // Your type for note data
+import { Notes } from '@/app/types/types'
 
 type Props = {
   open: boolean
