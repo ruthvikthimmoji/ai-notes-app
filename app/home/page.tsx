@@ -1,86 +1,99 @@
 'use client'
+
 import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import FormModal from '@/components/ui/formModel'
-import { BotIcon, Plus } from 'lucide-react'
+import { Bot, Plus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/supabaseClient'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Notes } from '@/types/types'
+
+const fetchNotes = async () => {
+  const { data, error } = await supabase
+    .from('notes')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error('Error fetching notes')
+  return data
+}
 
 const HomePage = () => {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [latestEntries, setLatestEntries] = useState<Notes[]>([])
   const [noteToEdit, setNoteToEdit] = useState<Notes | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const fetchData = async () => {
-    const { data, error } = await supabase
-      .from('notes')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Error fetching Data:', error)
-    } else {
-      setLatestEntries(data)
-    }
-  }
-
+  // 🔐 Auth check on mount
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user?.email) {
-        setLoading(false)
-        fetchData()
-      } else {
+      if (!session?.user?.email) {
         router.push('/login')
+      } else {
+        setLoading(false)
       }
     }
-
     checkSession()
   }, [router])
 
-  const handleDelete = async (noteId: string) => {
-    const { error } = await supabase
-      .from('notes')
-      .delete()
-      .eq('id', noteId)
+  // 📥 Fetch Notes
+  const { data: notes = [], refetch } = useQuery({
+    queryKey: ['notes'],
+    queryFn: fetchNotes,
+    enabled: !loading,
+  })
 
-    if (error) {
-      alert('Delete failed.')
-    } else {
-      alert('Note deleted successfully')
-      fetchData()
-    }
-  }
+  // 🔁 Insert/Update
+  const mutation = useMutation({
+    mutationFn: async ({
+      note,
+      id,
+    }: {
+      note: { title: string; content: string; summary: string }
+      id?: string
+    }) => {
+      if (id) {
+        const { error } = await supabase
+          .from('notes')
+          .update(note)
+          .eq('id', id)
+        if (error) throw new Error('Update failed')
+      } else {
+        const user = (await supabase.auth.getUser()).data.user
+        const { error } = await supabase
+          .from('notes')
+          .insert([{ ...note, user_id: user?.id }])
+        if (error) throw new Error('Create failed')
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] })
+      setModalOpen(false)
+      setNoteToEdit(null)
+    },
+    onError: (err: any) => {
+      alert(err.message)
+    },
+  })
 
-  const handleFormSubmit = async (
-    { title, content, summary }: { title: string, content: string, summary: string },
-    id?: string
-  ) => {
-    if (id) {
-      const { error } = await supabase
-        .from('notes')
-        .update({ title, content, summary })
-        .eq('id', id)
-      if (error) return alert('Update failed.')
-      alert('Note updated!')
-    } else {
-      const user = (await supabase.auth.getUser()).data.user
-      const { error } = await supabase
-        .from('notes')
-        .insert([{ user_id: user?.id, title, content, summary }])
-      if (error) return alert('Create failed.')
-      alert('Note created!')
-    }
+  // 🗑️ Delete
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('notes').delete().eq('id', id)
+      if (error) throw new Error('Delete failed')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] })
+    },
+    onError: (err: any) => {
+      alert(err.message)
+    },
+  })
 
-    fetchData()
-    setModalOpen(false)
-    setNoteToEdit(null)
-  }
-
-  if (loading) return <div className="p-4">Checking admin privileges...</div>
+  if (loading) return <div className="p-4">Checking session...</div>
 
   return (
     <div>
@@ -98,18 +111,33 @@ const HomePage = () => {
       </nav>
 
       <div className="flex flex-col items-center mt-10 gap-6">
-        {latestEntries.map((data) => (
+        {notes.map((data: Notes) => (
           <Card key={data.id} className="w-[800px] p-4">
             <div>
               <h3 className="text-xl font-semibold">Title: {data.title}</h3>
               <p>Content: {data.content}</p>
-              <p className="text-sm text-muted-foreground mt-2">Summary: {data.summary}</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Summary: {data.summary}
+              </p>
               <div className="mt-4 flex gap-4">
-                <Button onClick={() => {
-                  setNoteToEdit(data)
-                  setModalOpen(true)
-                }} className="bg-yellow-500 hover:bg-yellow-600">Edit</Button>
-                <Button onClick={() => handleDelete(data.id)} className="bg-red-500 hover:bg-red-600">Delete</Button>
+                <Button
+                  onClick={() => {
+                    setNoteToEdit(data)
+                    setModalOpen(true)
+                  }}
+                  className="bg-yellow-500 hover:bg-green-600"
+                >
+                  Edit
+                </Button>
+                <Button
+                  onClick={() => deleteMutation.mutate(data.id)}
+                  className="border hover:bg-red-600 hover:border-none"
+                >
+                  Delete
+                </Button>
+                <Button className="hover:bg-blue-400 bg-none">
+                  <Bot />
+                </Button>
               </div>
             </div>
           </Card>
@@ -132,7 +160,7 @@ const HomePage = () => {
           setModalOpen(false)
           setNoteToEdit(null)
         }}
-        onSubmit={handleFormSubmit}
+        onSubmit={(note, id) => mutation.mutate({ note, id })}
         noteToEdit={noteToEdit}
       />
     </div>
