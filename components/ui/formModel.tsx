@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from './button'
 import { Notes } from '@/app/types/types'
+import { Bot } from 'lucide-react'
+import { toast } from 'sonner' // You can remove this and fallback to alert if not using `sonner`
 
 type Props = {
   open: boolean
@@ -16,6 +18,7 @@ const FormModal = ({ open, onClose, onSubmit, noteToEdit }: Props) => {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [summary, setSummary] = useState('')
+  const [loadingSummary, setLoadingSummary] = useState(false)
 
   useEffect(() => {
     if (noteToEdit) {
@@ -32,6 +35,35 @@ const FormModal = ({ open, onClose, onSubmit, noteToEdit }: Props) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit({ title, content, summary }, noteToEdit?.id)
+  }
+
+  const handleSummarize = async () => {
+    if (!title || !content) {
+      toast.warning('Please fill in both title and content first.') // fallback: alert(...)
+      return
+    }
+
+    setLoadingSummary(true)
+    try {
+      const res = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content }),
+      })
+
+      const data = await res.json()
+      if (data.summary) {
+        setSummary(data.summary)
+        toast.success('Summary generated!')
+      } else {
+        throw new Error('No summary returned')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to summarize with AI')
+    } finally {
+      setLoadingSummary(false)
+    }
   }
 
   return (
@@ -57,13 +89,24 @@ const FormModal = ({ open, onClose, onSubmit, noteToEdit }: Props) => {
             className="w-full px-3 py-2 border rounded-md"
             required
           />
-          <textarea
-            placeholder="Summary"
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            className="w-full px-3 py-2 border rounded-md h-28"
-            required
-          />
+          <div className="relative">
+            <textarea
+              placeholder="Summary"
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md h-28"
+              required
+              readOnly // 🔒 Prevent accidental editing
+            />
+            <Button
+              type="button"
+              className="absolute right-2 bottom-2 hover:bg-blue-400 bg-none p-2"
+              onClick={handleSummarize}
+              disabled={loadingSummary || !title || !content}
+            >
+              {loadingSummary ? '...' : <Bot className="w-4 h-4" />}
+            </Button>
+          </div>
           <Button type="submit" className="w-full bg-blue-500 hover:bg-blue-600 text-white">
             {noteToEdit ? 'Update Note' : 'Create Note'}
           </Button>

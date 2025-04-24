@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import FormModal from '@/components/ui/formModel'
-import { Bot, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/supabaseClient'
@@ -26,6 +26,7 @@ const HomePage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [noteToEdit, setNoteToEdit] = useState<Notes | null>(null)
   const [loading, setLoading] = useState(true)
+  
 
   // 🔐 Auth check on mount
   useEffect(() => {
@@ -143,10 +144,7 @@ const HomePage = () => {
                   className="border hover:bg-red-600 hover:border-none"
                 >
                   Delete
-                </Button>
-                <Button className="hover:bg-blue-400 bg-none">
-                  <Bot />
-                </Button>
+                </Button> 
               </div>
             </div>
           </Card>
